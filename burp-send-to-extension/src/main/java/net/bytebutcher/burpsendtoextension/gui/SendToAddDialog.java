@@ -10,8 +10,6 @@ import net.bytebutcher.burpsendtoextension.gui.util.DialogUtil;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.Set;
 
 public class SendToAddDialog {
     private JTextField txtName;
@@ -22,27 +20,31 @@ public class SendToAddDialog {
     private JPanel formPanel;
     private JButton btnCommandHelp;
     private JCheckBox chkShowPreviewPriorToExecution;
+    private JCheckBox chkOutputReplacesSelection;
+    private JTextField txtGroup;
     private final JDialog dialog;
 
     private boolean success = false;
-    private Set<String> names;
+    private java.util.List<CommandObject> commandObjects;
     private AbstractAction onOkActionListener;
     private AbstractAction onCancelActionListener;
 
-    public SendToAddDialog(JFrame parent, String title, Set<String> names) {
-        this.names = names;
+    public SendToAddDialog(JFrame parent, String title, java.util.List<CommandObject> commandObjects) {
+        this.commandObjects = commandObjects;
         this.dialog = initDialog(parent, title);
         initEventListener();
         initKeyboardShortcuts();
     }
 
-    public SendToAddDialog(JFrame parent, String title, Set<String> names, CommandObject commandObject) {
-        this(parent, title, names);
-        names.remove(commandObject.getName());
+    public SendToAddDialog(JFrame parent, String title, java.util.List<CommandObject> commandObjects, CommandObject commandObject) {
+        this(parent, title, commandObjects);
+        commandObjects.remove(commandObject);
         txtName.setText(commandObject.getName());
         txtCommand.setText(commandObject.getCommand());
+        txtGroup.setText(commandObject.getGroup());
         chkRunInTerminal.setSelected(commandObject.isRunInTerminal());
         chkShowPreviewPriorToExecution.setSelected(commandObject.shouldShowPreview());
+        chkOutputReplacesSelection.setSelected(commandObject.shouldOutputReplaceSelection());
     }
 
     private void initKeyboardShortcuts() {
@@ -69,11 +71,11 @@ public class SendToAddDialog {
                     );
                     return;
                 }
-                if (names.contains(getName())) {
+                if (!commandObjects.stream().noneMatch(commandObject -> getName().equals(commandObject.getName()) && getGroup().equals(commandObject.getGroup()))) {
                     DialogUtil.showErrorDialog(
                             dialog,
-                            "Name should be unique!",
-                            "Name already exists!"
+                            "Name already exists within the specified group!",
+                            "Combination of name and group already exists!"
                     );
                     return;
                 }
@@ -134,8 +136,16 @@ public class SendToAddDialog {
         return txtCommand.getText();
     }
 
+    private String getGroup() {
+        return txtGroup.getText();
+    }
+
     private boolean isRunInTerminal() {
         return chkRunInTerminal.isSelected();
+    }
+
+    private boolean shouldOutputReplaceSelection() {
+        return chkOutputReplacesSelection.isSelected();
     }
 
     private boolean shouldShowPreview() {
@@ -143,7 +153,7 @@ public class SendToAddDialog {
     }
 
     public CommandObject getCommandObject() {
-        return new CommandObject(getName(), getCommand(), isRunInTerminal(), shouldShowPreview());
+        return new CommandObject(getName(), getCommand(), getGroup(), isRunInTerminal(), shouldShowPreview(), shouldOutputReplaceSelection());
     }
 
     {
@@ -205,7 +215,7 @@ public class SendToAddDialog {
         chkRunInTerminal.setDisplayedMnemonicIndex(0);
         gbc = new GridBagConstraints();
         gbc.gridx = 1;
-        gbc.gridy = 2;
+        gbc.gridy = 3;
         gbc.weightx = 1.0;
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(5, 2, 2, 2);
@@ -229,10 +239,41 @@ public class SendToAddDialog {
         chkShowPreviewPriorToExecution.setDisplayedMnemonicIndex(0);
         gbc = new GridBagConstraints();
         gbc.gridx = 1;
-        gbc.gridy = 3;
+        gbc.gridy = 4;
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(5, 2, 2, 2);
         panel1.add(chkShowPreviewPriorToExecution, gbc);
+        chkOutputReplacesSelection = new JCheckBox();
+        chkOutputReplacesSelection.setEnabled(true);
+        chkOutputReplacesSelection.setSelected(false);
+        chkOutputReplacesSelection.setText("Output should replace selection");
+        chkOutputReplacesSelection.setMnemonic('O');
+        chkOutputReplacesSelection.setDisplayedMnemonicIndex(0);
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 5;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(5, 2, 2, 2);
+        panel1.add(chkOutputReplacesSelection, gbc);
+        final JLabel label4 = new JLabel();
+        label4.setText("Group:");
+        label4.setDisplayedMnemonic('G');
+        label4.setDisplayedMnemonicIndex(0);
+        gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(2, 2, 2, 10);
+        panel1.add(label4, gbc);
+        txtGroup = new JTextField();
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        gbc.weightx = 1.0;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(2, 2, 2, 2);
+        panel1.add(txtGroup, gbc);
         final JPanel panel3 = new JPanel();
         panel3.setLayout(new GridLayoutManager(1, 3, new Insets(0, 0, 0, 0), -1, -1));
         formPanel.add(panel3, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -256,4 +297,5 @@ public class SendToAddDialog {
     public JComponent $$$getRootComponent$$$() {
         return formPanel;
     }
+
 }
