@@ -1,15 +1,25 @@
 package net.bytebutcher.burpsendtoextension.gui;
 
-import burp.*;
-import com.google.common.collect.*;
+import burp.BurpExtender;
+import burp.IContextMenuFactory;
+import burp.IContextMenuInvocation;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import net.bytebutcher.burpsendtoextension.gui.util.DialogUtil;
 import net.bytebutcher.burpsendtoextension.models.CommandObject;
+import net.bytebutcher.burpsendtoextension.models.Placeholders;
+import net.bytebutcher.burpsendtoextension.models.placeholder.IPlaceholder;
 import net.bytebutcher.burpsendtoextension.utils.OsUtils;
 import net.bytebutcher.burpsendtoextension.utils.StringUtils;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class SendToContextMenu implements IContextMenuFactory {
@@ -19,6 +29,28 @@ public class SendToContextMenu implements IContextMenuFactory {
     private final List<JMenuItem> sendToMenuBar;
     private final JMenu sendToMenu;
     private IContextMenuInvocation invocation;
+    private List<Map<String, IPlaceholder>> placeholders = Lists.newArrayList();
+    private List<CommandObjectMenuItem> menuItems = Lists.newArrayList();
+
+    private class CommandObjectMenuItem extends JMenuItem {
+
+        private final CommandObject commandObject;
+
+        public CommandObjectMenuItem(Action a, CommandObject commandObject) {
+            super(a);
+            this.commandObject = commandObject;
+        }
+
+        public void refreshStatus(List<Map<String, IPlaceholder>> placeholders) {
+            List<Map<String, IPlaceholder>> validEntries = commandObject.getValid(placeholders);
+            if (placeholders.size() > 1) {
+                setText(commandObject.getName() + " (" + validEntries.size() + "/" + placeholders.size() + ")");
+            } else {
+                setText(commandObject.getName());
+            }
+            setEnabled(validEntries.size() > 0);
+        }
+    }
 
     public SendToContextMenu(BurpExtender burpExtender, SendToTableListener sendToTableListener) {
         this.burpExtender = burpExtender;
@@ -37,51 +69,39 @@ public class SendToContextMenu implements IContextMenuFactory {
     @Override
     public List<JMenuItem> createMenuItems(IContextMenuInvocation invocation) {
         this.invocation = invocation;
+        this.placeholders = Placeholders.get(burpExtender.getCallbacks(), invocation);
+        refreshMenuItemsStatus(placeholders);
         return sendToMenuBar;
     }
 
-    private IRequestInfo getRequestInfo(IHttpRequestResponse req) {
-        return burpExtender.getCallbacks().getHelpers().analyzeRequest(req.getHttpService(), req.getRequest());
-    }
-
-    private String getSelectedText() {
-        String selectedText = null;
-        int[] selectionBounds = this.invocation.getSelectionBounds();
-        IHttpRequestResponse[] selectedMessages = invocation.getSelectedMessages();
-        byte iContext = invocation.getInvocationContext();
-        if (selectionBounds != null) {
-            IHttpRequestResponse iHttpRequestResponse = invocation.getSelectedMessages()[0];
-            if (iContext == IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST
-                    || iContext == IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_REQUEST) {
-                selectedText = new String(iHttpRequestResponse.getRequest()).substring(selectionBounds[0], selectionBounds[1]);
-            } else if (iContext == IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_RESPONSE
-                    || iContext == IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_RESPONSE) {
-                selectedText = new String(iHttpRequestResponse.getResponse()).substring(selectionBounds[0], selectionBounds[1]);
-            }
-        } else if (selectedMessages != null) {
-            selectedText = getRequestInfo(selectedMessages[0]).getUrl().toString();
+    /**
+     * Enables menu items when associated command object is valid, otherwise disables them.
+     */
+    private void refreshMenuItemsStatus(List<Map<String, IPlaceholder>> placeholders) {
+        for (CommandObjectMenuItem menuItem : menuItems) {
+            menuItem.refreshStatus(placeholders);
         }
-        return selectedText;
     }
 
     private void replaceSelectedText(String replaceText) {
-        if(invocation.getInvocationContext() == IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST || invocation.getInvocationContext() == IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_REQUEST) {
-            int[] bounds = invocation.getSelectionBounds();
-            byte[] message = invocation.getSelectedMessages()[0].getRequest();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            try {
+        try {
+            if (invocation.getInvocationContext() == IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST || invocation.getInvocationContext() == IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_REQUEST) {
+                int[] bounds = invocation.getSelectionBounds();
+                byte[] message = invocation.getSelectedMessages()[0].getRequest();
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                 outputStream.write(Arrays.copyOfRange(message, 0, bounds[0]));
                 outputStream.write(replaceText.getBytes());
-                outputStream.write(Arrays.copyOfRange(message, bounds[1],message.length));
+                outputStream.write(Arrays.copyOfRange(message, bounds[1], message.length));
                 outputStream.flush();
                 invocation.getSelectedMessages()[0].setRequest(outputStream.toByteArray());
-            } catch (IOException e) {
-                burpExtender.getCallbacks().printError("Error during replacing selection with output: " + e.toString());
             }
+        } catch (IOException e) {
+            burpExtender.getCallbacks().printError("Error during replacing selection with output: " + e.toString());
         }
     }
 
     public void refreshSendToMenuBar(final List<CommandObject> commandObjects) {
+        menuItems.clear();
         sendToMenu.removeAll();
         sendToMenu.add(new JMenuItem(new AbstractAction("Custom command...") {
             @Override
@@ -108,7 +128,7 @@ public class SendToContextMenu implements IContextMenuFactory {
             for (final CommandObject commandObject : commandObjects) {
                 String group = commandObject.getGroup();
                 if (group.isEmpty()) {
-                    sendToMenu.add(newCommandMenuItem(commandObject));
+                    addMenuItem(sendToMenu, commandObject);
                     hasEmptyGroup = true;
                     continue;
                 }
@@ -123,7 +143,7 @@ public class SendToContextMenu implements IContextMenuFactory {
             for (String group : groupedCommandObjects.keySet()) {
                 JMenu menuItem = new JMenu(group);
                 for (CommandObject commandObject : groupedCommandObjects.get(group)) {
-                    menuItem.add(newCommandMenuItem(commandObject));
+                    addMenuItem(menuItem, commandObject);
                 }
                 sendToMenu.add(menuItem);
             }
@@ -131,8 +151,8 @@ public class SendToContextMenu implements IContextMenuFactory {
         sendToMenuBar.add(sendToMenu);
     }
 
-    private JMenuItem newCommandMenuItem(CommandObject commandObject) {
-        return new JMenuItem(new AbstractAction(commandObject.getName()) {
+    private void addMenuItem(JMenu menu, CommandObject commandObject) {
+        CommandObjectMenuItem menuItem = new CommandObjectMenuItem(new AbstractAction(commandObject.getName()) {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String result = runCommandObject(commandObject);
@@ -140,15 +160,9 @@ public class SendToContextMenu implements IContextMenuFactory {
                     replaceSelectedText(result);
                 }
             }
-        });
-    }
-
-    private Set<String> getCommandNames(List<CommandObject> commandObjects) {
-        Set<String> names = new HashSet<String>();
-        for (CommandObject commandObject : commandObjects) {
-            names.add(commandObject.getName());
-        }
-        return names;
+        }, commandObject);
+        menuItems.add(menuItem);
+        menu.add(menuItem);
     }
 
     private String runCommandObject(CommandObject commandObject) {
@@ -160,7 +174,10 @@ public class SendToContextMenu implements IContextMenuFactory {
 
             logCommandToBeExecuted(commandToBeExecuted);
             Process process = new ProcessBuilder(commandToBeExecuted).start();
-            return StringUtils.fromInputStream(process.getInputStream());
+            if (commandObject.shouldOutputReplaceSelection()) {
+                return StringUtils.fromInputStream(process.getInputStream());
+            }
+            return null;
         } catch (Exception e) {
             DialogUtil.showErrorDialog(
                     burpExtender.getParent(),
@@ -168,18 +185,26 @@ public class SendToContextMenu implements IContextMenuFactory {
                     "<html><p>There was an unknown error during command execution!</p>" +
                             "<p>For more information check out the \"Send to\" extension error log!</p></html>"
             );
-            burpExtender.getCallbacks().printError("Error during command execution: " + e);
+            BurpExtender.printErr("Error during command execution: " + e);
+            BurpExtender.printErr(stackTraceToString(e));
             return null;
         }
     }
 
-    private String[] getCommandToBeExecuted(CommandObject commandObject) throws IOException {
+    private String stackTraceToString(Exception e) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        e.printStackTrace(pw);
+        return sw.toString();
+    }
+
+    private String[] getCommandToBeExecuted(CommandObject commandObject) throws Exception {
         return formatCommand(commandObject);
     }
 
-    private String[] formatCommand(CommandObject commandObject) throws IOException {
+    private String[] formatCommand(CommandObject commandObject) throws Exception {
         String[] commandToBeExecuted;
-        String command = formatCommandPattern(commandObject.getCommand());
+        String command = commandObject.getFormattedCommand(placeholders);
 
         if (commandObject.shouldShowPreview()) {
             SendToPreviewDialog previewDialog = new SendToPreviewDialog(
@@ -195,7 +220,7 @@ public class SendToContextMenu implements IContextMenuFactory {
             command = previewDialog.getCommand();
         }
 
-        if (commandObject.isRunInTerminal()) {
+        if (commandObject.shouldRunInTerminal()) {
             commandToBeExecuted = formatCommandForRunningInTerminal(command);
         } else {
             commandToBeExecuted = formatCommandRunningOnOperatingSystem(command);
@@ -213,25 +238,6 @@ public class SendToContextMenu implements IContextMenuFactory {
         return commandToBeExecuted;
     }
 
-    private String formatCommandPattern(String command) throws IOException {
-        if (command.contains("%F")) {
-            File tmp = writeTextToTemporaryFile(command);
-            command = command.replace("%F", tmp.getAbsolutePath());
-        }
-        if (command.contains("%S")) {
-            command = command.replace("%S", "'" + StringUtils.shellEscape(this.getSelectedText()) + "'");
-        }
-        return command;
-    }
-
-    private File writeTextToTemporaryFile(String command) throws IOException {
-        File tmp = File.createTempFile("burp_", ".snd");
-        PrintWriter out = new PrintWriter(tmp.getPath());
-        out.write(this.getSelectedText());
-        out.flush();
-        return tmp;
-    }
-
     private String[] formatCommandForRunningInTerminal(String command) throws IOException {
         String[] commandToBeExecuted = this.burpExtender.getConfig().getRunInTerminalCommand().split(" ");
         for (int i = 0; i < commandToBeExecuted.length; i++) {
@@ -245,6 +251,8 @@ public class SendToContextMenu implements IContextMenuFactory {
 
     private void logCommandToBeExecuted(String[] commandToBeExecuted) {
         String commandToBeExecutedWithoutControlCharacters = String.join(" ", commandToBeExecuted).replaceAll("[\u0000-\u001f]", "");
-        burpExtender.getCallbacks().printOutput("CommandObject: " + commandToBeExecutedWithoutControlCharacters);
+        String dateTime = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss"));
+        BurpExtender.printOut("[" + dateTime + "] " + commandToBeExecutedWithoutControlCharacters);
+        BurpExtender.printOut("----------------------------------------------------------------------");
     }
 }

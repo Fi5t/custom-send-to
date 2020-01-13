@@ -4,8 +4,8 @@ import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
 import net.bytebutcher.burpsendtoextension.gui.listener.ToolTipActionListener;
-import net.bytebutcher.burpsendtoextension.models.CommandObject;
 import net.bytebutcher.burpsendtoextension.gui.util.DialogUtil;
+import net.bytebutcher.burpsendtoextension.models.CommandObject;
 
 import javax.swing.*;
 import java.awt.*;
@@ -16,12 +16,13 @@ public class SendToAddDialog {
     private JTextField txtCommand;
     private JButton btnCancel;
     private JButton btnOk;
-    private JCheckBox chkRunInTerminal;
     private JPanel formPanel;
     private JButton btnCommandHelp;
     private JCheckBox chkShowPreviewPriorToExecution;
-    private JCheckBox chkOutputReplacesSelection;
     private JTextField txtGroup;
+    private JRadioButton chkRunInTerminal;
+    private JRadioButton chkOutputShouldReplaceSelection;
+    private JRadioButton chkRunInBackground;
     private final JDialog dialog;
 
     private boolean success = false;
@@ -42,9 +43,10 @@ public class SendToAddDialog {
         txtName.setText(commandObject.getName());
         txtCommand.setText(commandObject.getCommand());
         txtGroup.setText(commandObject.getGroup());
-        chkRunInTerminal.setSelected(commandObject.isRunInTerminal());
         chkShowPreviewPriorToExecution.setSelected(commandObject.shouldShowPreview());
-        chkOutputReplacesSelection.setSelected(commandObject.shouldOutputReplaceSelection());
+        chkRunInBackground.setSelected(commandObject.shouldRunInBackground());
+        chkRunInTerminal.setSelected(commandObject.shouldRunInTerminal());
+        chkOutputShouldReplaceSelection.setSelected(commandObject.shouldOutputReplaceSelection());
     }
 
     private void initKeyboardShortcuts() {
@@ -102,8 +104,19 @@ public class SendToAddDialog {
         btnCancel.addActionListener(onCancelActionListener);
         btnCommandHelp.addActionListener(new ToolTipActionListener(btnCommandHelp, "" +
                 "<html>" +
+                "<p>%H = Host</p>" +
+                "<p>%P = Port</p>" +
+                "<p>%T = Protocol</p>" +
+                "<p>%U = URL</p>" +
+                "<p>%A = URL-Path</p>" +
+                "<p>%Q = URL-Query</p>" +
+                "<p>%C = Cookies</p>" +
+                "<p>%M = HTTP-Method</p>" +
                 "<p>%S = Selected text</p>" +
                 "<p>%F = Path to file containing selected text</p>" +
+                "<p>%R = Path to file containing focused HTTP-request/-response</p>" +
+                "<p>%B = Path to file containing HTTP-body of focused request/response</p>" +
+                "<p>%E = Path to file containing HTTP-header of focused request/response</p>" +
                 "</html>")
         );
     }
@@ -140,12 +153,12 @@ public class SendToAddDialog {
         return txtGroup.getText();
     }
 
-    private boolean isRunInTerminal() {
+    private boolean shouldRunInTerminal() {
         return chkRunInTerminal.isSelected();
     }
 
     private boolean shouldOutputReplaceSelection() {
-        return chkOutputReplacesSelection.isSelected();
+        return chkOutputShouldReplaceSelection.isSelected();
     }
 
     private boolean shouldShowPreview() {
@@ -153,7 +166,7 @@ public class SendToAddDialog {
     }
 
     public CommandObject getCommandObject() {
-        return new CommandObject(getName(), getCommand(), getGroup(), isRunInTerminal(), shouldShowPreview(), shouldOutputReplaceSelection());
+        return new CommandObject(getName(), getCommand(), getGroup(), shouldRunInTerminal(), shouldShowPreview(), shouldOutputReplaceSelection());
     }
 
     {
@@ -174,7 +187,7 @@ public class SendToAddDialog {
         formPanel = new JPanel();
         formPanel.setLayout(new GridLayoutManager(3, 1, new Insets(10, 10, 10, 10), -1, -1));
         final JLabel label1 = new JLabel();
-        label1.setText("Enter the details for the specified \"Send to...\" context menu entry.");
+        label1.setText("Enter the details for the \"Send to...\" context menu entry.");
         formPanel.add(label1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel1 = new JPanel();
         panel1.setLayout(new GridBagLayout());
@@ -192,34 +205,14 @@ public class SendToAddDialog {
         panel1.add(label2, gbc);
         final JLabel label3 = new JLabel();
         label3.setText("Command:");
-        label3.setDisplayedMnemonic('C');
-        label3.setDisplayedMnemonicIndex(0);
+        label3.setDisplayedMnemonic('M');
+        label3.setDisplayedMnemonicIndex(2);
         gbc = new GridBagConstraints();
         gbc.gridx = 0;
         gbc.gridy = 1;
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(2, 2, 2, 10);
         panel1.add(label3, gbc);
-        txtName = new JTextField();
-        gbc = new GridBagConstraints();
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        gbc.weightx = 1.0;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(2, 2, 2, 2);
-        panel1.add(txtName, gbc);
-        chkRunInTerminal = new JCheckBox();
-        chkRunInTerminal.setText("Run in terminal");
-        chkRunInTerminal.setMnemonic('R');
-        chkRunInTerminal.setDisplayedMnemonicIndex(0);
-        gbc = new GridBagConstraints();
-        gbc.gridx = 1;
-        gbc.gridy = 3;
-        gbc.weightx = 1.0;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(5, 2, 2, 2);
-        panel1.add(chkRunInTerminal, gbc);
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
         gbc = new GridBagConstraints();
@@ -228,33 +221,11 @@ public class SendToAddDialog {
         gbc.fill = GridBagConstraints.BOTH;
         panel1.add(panel2, gbc);
         txtCommand = new JTextField();
+        txtCommand.setText("");
         panel2.add(txtCommand, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         btnCommandHelp = new JButton();
         btnCommandHelp.setText("?");
         panel2.add(btnCommandHelp, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        chkShowPreviewPriorToExecution = new JCheckBox();
-        chkShowPreviewPriorToExecution.setSelected(true);
-        chkShowPreviewPriorToExecution.setText("Show preview prior to execution");
-        chkShowPreviewPriorToExecution.setMnemonic('S');
-        chkShowPreviewPriorToExecution.setDisplayedMnemonicIndex(0);
-        gbc = new GridBagConstraints();
-        gbc.gridx = 1;
-        gbc.gridy = 4;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(5, 2, 2, 2);
-        panel1.add(chkShowPreviewPriorToExecution, gbc);
-        chkOutputReplacesSelection = new JCheckBox();
-        chkOutputReplacesSelection.setEnabled(true);
-        chkOutputReplacesSelection.setSelected(false);
-        chkOutputReplacesSelection.setText("Output should replace selection");
-        chkOutputReplacesSelection.setMnemonic('O');
-        chkOutputReplacesSelection.setDisplayedMnemonicIndex(0);
-        gbc = new GridBagConstraints();
-        gbc.gridx = 1;
-        gbc.gridy = 5;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(5, 2, 2, 2);
-        panel1.add(chkOutputReplacesSelection, gbc);
         final JLabel label4 = new JLabel();
         label4.setText("Group:");
         label4.setDisplayedMnemonic('G');
@@ -265,6 +236,35 @@ public class SendToAddDialog {
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(2, 2, 2, 10);
         panel1.add(label4, gbc);
+        chkRunInTerminal = new JRadioButton();
+        chkRunInTerminal.setText("Run in terminal");
+        chkRunInTerminal.setMnemonic('T');
+        chkRunInTerminal.setDisplayedMnemonicIndex(7);
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 4;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel1.add(chkRunInTerminal, gbc);
+        chkOutputShouldReplaceSelection = new JRadioButton();
+        chkOutputShouldReplaceSelection.setText("Output should replace selection");
+        chkOutputShouldReplaceSelection.setMnemonic('R');
+        chkOutputShouldReplaceSelection.setDisplayedMnemonicIndex(14);
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 5;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel1.add(chkOutputShouldReplaceSelection, gbc);
+        chkShowPreviewPriorToExecution = new JCheckBox();
+        chkShowPreviewPriorToExecution.setSelected(true);
+        chkShowPreviewPriorToExecution.setText("Show preview prior to execution");
+        chkShowPreviewPriorToExecution.setMnemonic('P');
+        chkShowPreviewPriorToExecution.setDisplayedMnemonicIndex(5);
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 6;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(5, 2, 2, 2);
+        panel1.add(chkShowPreviewPriorToExecution, gbc);
         txtGroup = new JTextField();
         gbc = new GridBagConstraints();
         gbc.gridx = 1;
@@ -274,6 +274,25 @@ public class SendToAddDialog {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 2, 2, 2);
         panel1.add(txtGroup, gbc);
+        txtName = new JTextField();
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(2, 2, 2, 2);
+        panel1.add(txtName, gbc);
+        chkRunInBackground = new JRadioButton();
+        chkRunInBackground.setSelected(true);
+        chkRunInBackground.setText("Run in background");
+        chkRunInBackground.setMnemonic('B');
+        chkRunInBackground.setDisplayedMnemonicIndex(7);
+        gbc = new GridBagConstraints();
+        gbc.gridx = 1;
+        gbc.gridy = 3;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel1.add(chkRunInBackground, gbc);
         final JPanel panel3 = new JPanel();
         panel3.setLayout(new GridLayoutManager(1, 3, new Insets(0, 0, 0, 0), -1, -1));
         formPanel.add(panel3, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -289,6 +308,14 @@ public class SendToAddDialog {
         panel3.add(btnOk, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer1 = new Spacer();
         panel3.add(spacer1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        label2.setLabelFor(txtName);
+        label3.setLabelFor(txtCommand);
+        label4.setLabelFor(txtGroup);
+        ButtonGroup buttonGroup;
+        buttonGroup = new ButtonGroup();
+        buttonGroup.add(chkRunInTerminal);
+        buttonGroup.add(chkOutputShouldReplaceSelection);
+        buttonGroup.add(chkRunInBackground);
     }
 
     /**
