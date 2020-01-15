@@ -23,3 +23,8 @@ task fatJar(type: Jar) {
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
     with jar
 }
+
+compileJava {
+	sourceCompatibility '1.8'
+	targetCompatibility '1.8'
+}
