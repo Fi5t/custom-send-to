@@ -6,7 +6,9 @@ import java.awt.*;
 public final class DialogUtil {
 
     public static void showErrorDialog(Component parent, String title, String message) {
-        final JDialog dlgError = new JOptionPane(message, JOptionPane.ERROR_MESSAGE).createDialog(parent, title);
+        JOptionPane optionPane = new JOptionPane(message, JOptionPane.ERROR_MESSAGE);
+        optionPane.putClientProperty("html.disable", null);
+        final JDialog dlgError = optionPane.createDialog(parent, title);
         dlgError.setLocation(getX(parent, dlgError),getY(parent, dlgError));
         dlgError.setVisible(true);
     }

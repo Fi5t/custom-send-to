@@ -17,6 +17,7 @@ public class ToolTipActionListener implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         JToolTip toolTip = this.component.createToolTip();
+        toolTip.putClientProperty("html.disable", null);
         toolTip.setTipText(this.toolTipText);
         PopupFactory popupFactory = PopupFactory.getSharedInstance();
         int x = this.component.getLocationOnScreen().x;
