@@ -238,14 +238,14 @@ public class SendToContextMenu implements IContextMenuFactory {
         return commandToBeExecuted;
     }
 
-    private String[] formatCommandForRunningInTerminal(String command) throws IOException {
-        String[] commandToBeExecuted = this.burpExtender.getConfig().getRunInTerminalCommand().split(" ");
-        for (int i = 0; i < commandToBeExecuted.length; i++) {
-            String commandPart = commandToBeExecuted[i];
-            if ("%C".equals(commandPart)) {
-                commandToBeExecuted[i] = command;
-            }
-        }
+    private String[] formatCommandForRunningInTerminal(String command) {
+        String[] commandTemplate = this.burpExtender.getConfig().getRunInTerminalCommand().split(" ");
+        String[] commandArray = command.split(" ");
+        String[] commandToBeExecuted = new String[commandTemplate.length + commandArray.length - 1];
+
+        System.arraycopy(commandTemplate, 0, commandToBeExecuted, 0, commandTemplate.length - 1);
+        System.arraycopy(commandArray, 0, commandToBeExecuted, commandTemplate.length - 1, commandArray.length);
+
         return commandToBeExecuted;
     }
 
